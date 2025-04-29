@@ -50,7 +50,7 @@ jobs:
           done
 
       - name: Run Migrations
-        working-directory: ./backend/core
+        working-directory: ./core
         env:
           DB_HOST: 127.0.0.1
           DB_NAME: test_db
@@ -60,7 +60,7 @@ jobs:
           python manage.py migrate
 
       - name: Run Tests
-        working-directory: ./backend/core
+        working-directory: ./core
         env:
           DB_HOST: 127.0.0.1
           DB_NAME: test_db
