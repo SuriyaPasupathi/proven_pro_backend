@@ -71,7 +71,12 @@ jobs:
             echo "Waiting for database..."
             sleep 3
           done
-
+          
+      - name: Run MakeMigrations
+        working-directory: ./core
+        run: |
+          python manage.py makemigrations
+          
       - name: Run Migrations
         working-directory: ./core
         run: |
