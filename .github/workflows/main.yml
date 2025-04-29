@@ -26,6 +26,13 @@ jobs:
           --health-timeout=5s
           --health-retries=3
 
+    env:  # ✅ Global env for all steps
+      DB_ENGINE: django.db.backends.mysql
+      DB_HOST: 127.0.0.1
+      DB_NAME: test_db
+      DB_USER: test_user
+      DB_PASSWORD: test_password
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -51,20 +58,10 @@ jobs:
 
       - name: Run Migrations
         working-directory: ./core
-        env:
-          DB_HOST: 127.0.0.1
-          DB_NAME: test_db
-          DB_USER: test_user
-          DB_PASSWORD: test_password
         run: |
           python manage.py migrate
 
       - name: Run Tests
         working-directory: ./core
-        env:
-          DB_HOST: 127.0.0.1
-          DB_NAME: test_db
-          DB_USER: test_user
-          DB_PASSWORD: test_password
         run: |
           python manage.py test
