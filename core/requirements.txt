@@ -15,3 +15,5 @@ PyJWT
 sqlparse                     
 tzdata                        
 stripe
+python-decouple
+
