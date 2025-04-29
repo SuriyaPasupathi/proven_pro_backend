@@ -80,7 +80,7 @@ jobs:
       - name: Run Migrations
         working-directory: ./core
         run: |
-          python manage.py migrate users
+          python manage.py migrate user
 
       - name: Run Tests
         working-directory: ./core
