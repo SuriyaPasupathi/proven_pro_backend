@@ -15,6 +15,8 @@ from datetime import timedelta
 from decouple import config
 
 import os
+import sys
+import logging
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -181,26 +183,33 @@ LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
     'handlers': {
-        'console': {
-            'class': 'logging.StreamHandler',
-        },
         'file': {
+            'level': 'ERROR',
             'class': 'logging.FileHandler',
             'filename': 'debug.log',
         },
+        'console': {
+            'level': 'ERROR',
+            'class': 'logging.StreamHandler',
+        },
     },
     'loggers': {
-        '': {  # Root logger
-            'handlers': ['console', 'file'],
-            'level': 'INFO',
+        'django': {
+            'handlers': ['file', 'console'],
+            'level': 'ERROR',
+            'propagate': True,
         },
-        'user': {  # App-specific logger
-            'handlers': ['console', 'file'],
-            'level': 'DEBUG',
-            'propagate': False,
+        'user': {
+            'handlers': ['file', 'console'],
+            'level': 'ERROR',
+            'propagate': True,
         },
     },
 }
+
+# Only show ERROR and above during testing
+if len(sys.argv) > 1 and sys.argv[1] == 'test':
+    logging.disable(logging.WARNING)
 
 # Stripe Settings
 

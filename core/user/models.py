@@ -4,6 +4,8 @@ from django.conf import settings
 from django.contrib.auth.models import User
 from django.utils import timezone
 import uuid
+from django.core.validators import MinValueValidator, MaxValueValidator
+from django.core.exceptions import ValidationError
 
 
 class CustomUser(AbstractUser):
@@ -99,16 +101,21 @@ class Review(models.Model):
     """Model for client reviews"""
     profile = models.ForeignKey(UserProfile, on_delete=models.CASCADE, related_name='client_reviews')
     reviewer_name = models.CharField(max_length=100)
-    rating = models.IntegerField(choices=[(i, i) for i in range(1, 6)])  # 1-5 star rating
+    rating = models.IntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(5)]
+    )
     comment = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
     
-    def __str__(self):
-        return f"Review for {self.profile.name} by {self.reviewer_name}"
-    
+    def clean(self):
+        if self.rating < 1 or self.rating > 5:
+            raise ValidationError('Rating must be between 1 and 5')
+        
     def save(self, *args, **kwargs):
-        # Update the average rating on the profile when a review is saved
+        self.full_clean()  # This will run validators and clean method
         super().save(*args, **kwargs)
+        
+        # Update the average rating on the profile
         profile = self.profile
         reviews = profile.client_reviews.all()
         if reviews:
