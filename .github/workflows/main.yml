@@ -133,7 +133,7 @@ jobs:
             pip install -r requirements.txt
 
             echo "📂 Running migrations and collectstatic"
-            python manage.py migrate
+            python manage.py migrate user
             python manage.py collectstatic --noinput
 
             echo "🔄 Restarting Gunicorn and Nginx"
