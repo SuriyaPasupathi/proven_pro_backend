@@ -79,12 +79,12 @@ jobs:
           CREATE DATABASE test_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
           "
 
-      - name: Clear migrations
-        working-directory: ./core
-        run: |
+      # - name: Clear migrations
+      #   working-directory: ./core
+      #   run: |
 
-          rm -f user/migrations/0*.py
-          touch user/migrations/__init__.py
+      #     rm -f user/migrations/0*.py
+      #     touch user/migrations/__init__.py
 
       - name: Make migrations
         working-directory: ./core
