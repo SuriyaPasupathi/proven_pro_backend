@@ -78,11 +78,11 @@ jobs:
       #     python manage.py makemigrations
           
       - name: Run Migrations
-        working-directory: ./core
+        # working-directory: ./core
         run: |
           python manage.py migrate
 
       - name: Run Tests
-        working-directory: ./core
+        # working-directory: ./core
         run: |
           python manage.py test
