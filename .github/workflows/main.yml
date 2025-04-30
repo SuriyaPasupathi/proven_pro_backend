@@ -82,6 +82,7 @@ jobs:
       - name: Clear migrations
         working-directory: ./core
         run: |
+<<<<<<< HEAD
           rm -f user/migrations/0*.py
           touch user/migrations/__init__.py
 
@@ -100,6 +101,9 @@ jobs:
           python manage.py migrate sessions
           python manage.py migrate user
           python manage.py migrate
+=======
+          python manage.py migrate user
+>>>>>>> 24dff2ac6c83e6fd8b62b329ec1fadb8233a0bc7
 
       - name: Run Tests
         working-directory: ./core
