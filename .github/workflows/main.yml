@@ -88,11 +88,6 @@ jobs:
       - name: Run migrations
         working-directory: ./core
         run: |
-          python manage.py migrate auth
-          python manage.py migrate contenttypes
-          python manage.py migrate admin
-          python manage.py migrate sessions
-          python manage.py migrate user
           python manage.py migrate
 
       - name: Run Tests
@@ -100,34 +95,52 @@ jobs:
         run: |
           python manage.py test
 
-      - name: Deploy to EC2
-        if: github.ref == 'refs/heads/main' || gihtub.ref == 'refs/heads/develop'
+  deploy:
+    if: github.ref == 'refs/heads/develop'
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to EC2 (Develop Branch)
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            set -x  # DEBUG: print all executed commands
-            echo "🔁 Switching to project directory"
-            cd /home/ubuntu/proven_pro_backend
+            set -x  # Enable debug mode
 
-            echo "📥 Pulling latest changes from GitHub"
-            git pull origin main
+            REPO_DIR="/home/ubuntu/proven_pro_backend"
+            REPO_URL="git@github.com:yourusername/your-repo.git"  # replace with your repo
 
-            echo "🐍 Activating virtual environment"
-            source env/bin/activate
+            echo "🧭 Navigating to home directory"
+            cd /home/ubuntu
 
-            echo "📦 Installing dependencies"
+            if [ ! -d "$REPO_DIR" ]; then
+              echo "📦 Cloning repository (develop branch)..."
+              git clone -b develop $REPO_URL proven_pro_backend
+            else
+              echo "📥 Repository exists. Pulling latest changes..."
+              cd "$REPO_DIR"
+              git checkout develop
+              git pull origin develop
+            fi
+
+            echo "⚙️ Setting up environment"
+            cd "$REPO_DIR"
+            source env/bin/activate || python3 -m venv env && source env/bin/activate
+            pip install --upgrade pip
             pip install -r requirements.txt
 
-            echo "📂 Running migrations"
+            echo "📂 Running migrations and collectstatic"
             python manage.py migrate
-
-            echo "🎨 Collecting static files"
             python manage.py collectstatic --noinput
 
-            echo "🚀 Restarting Gunicorn"
+            echo "🔄 Restarting Gunicorn and Nginx"
             sudo systemctl restart gunicorn
+            sudo systemctl restart nginx
 
-            echo "✅ Deployment completed successfully"
+            echo "🔁 Restarting pm2 apps if needed"
+            pm2 reload all || echo "pm2 not configured"
+
+            echo "✅ Deployment complete"
