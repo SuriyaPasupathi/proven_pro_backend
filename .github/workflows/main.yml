@@ -108,41 +108,41 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            set -x  # Enable debug mode
+            set -x
 
-            REPO_DIR="/home/ubuntu/suri/proven_pro_backend
-            REPO_URL="https://github.com/SuriyaPasupathi/proven_pro_backend.git"  # replace with your repo
+            REPO_DIR="/home/ubuntu/suri/proven_pro_backend"
+            REPO_URL="https://github.com/SuriyaPasupathi/proven_pro_backend.git"
 
-            echo "🧭 Navigating to home directory"
+            echo "Navigating to home directory"
             cd /home/ubuntu
 
             if [ ! -d "$REPO_DIR" ]; then
-              echo "📦 Cloning repository (develop branch)..."
-              git clone $REPO_URL 
+              echo "Cloning repository (develop branch)..."
+              git clone -b develop $REPO_URL "$REPO_DIR"
             else
-              echo "📥 Repository exists. Pulling latest changes..."
+              echo "Repository exists. Pulling latest changes..."
               cd "$REPO_DIR"
               git checkout develop
               git pull origin develop
+            fi
 
-       
-
-            echo "⚙️ Setting up environment"
+            echo "Setting up environment"
             cd "$REPO_DIR"
             source env/bin/activate || python3 -m venv env && source env/bin/activate
             pip install --upgrade pip
+
             cd core/
             pip install -r requirements.txt
 
-            echo "📂 Running migrations and collectstatic"
+            echo "Running migrations and collectstatic"
             python manage.py migrate user
             python manage.py collectstatic --noinput
 
-            echo "🔄 Restarting Gunicorn and Nginx"
+            echo "Restarting Gunicorn and Nginx"
             sudo systemctl restart gunicorn
             sudo systemctl restart nginx
 
-            echo "🔁 Restarting pm2 apps if needed"
+            echo "Reloading pm2 apps (if configured)"
             pm2 reload all || echo "pm2 not configured"
 
-            echo "✅ Deployment complete"
+            echo "Deployment complete"
