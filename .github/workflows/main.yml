@@ -100,14 +100,18 @@ jobs:
         run: |
           python manage.py test
 
+      - name: Print current GitHub branch (for debug)
+        run: echo "Branch is ${{ github.ref }}"
+
       - name: Deploy to EC2
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
+            echo "Deploying branch: ${{ github.ref }}"
             cd /home/ubuntu/proven_pro_backend
             git pull origin main
             source env/bin/activate
