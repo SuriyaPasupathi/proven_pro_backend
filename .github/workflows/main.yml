@@ -1,10 +1,10 @@
-name: Django CI
+name: Django CI/CD
 
 on:
   push:
-    branches: [ main , develop ]
+    branches: [ main, develop ]
   pull_request:
-    branches: [ main , develop ]
+    branches: [ main, develop ]
 
 jobs:
   build:
@@ -71,18 +71,78 @@ jobs:
             echo "Waiting for database..."
             sleep 3
           done
-          
-      # - name: Run MakeMigrations
-      #   working-directory: ./core
-      #   run: |
-      #     python manage.py makemigrations
-          
-      - name: Run Migrations
+
+      - name: Setup Database
+        run: |
+          mysql -h 127.0.0.1 -u test_user -ptest_password -e "
+          DROP DATABASE IF EXISTS test_db;
+          CREATE DATABASE test_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+          "
+
+      - name: Make migrations
         working-directory: ./core
         run: |
-          python manage.py migrate user
+          python manage.py makemigrations user
+          python manage.py makemigrations
+
+      - name: Run migrations
+        working-directory: ./core
+        run: |
+          python manage.py migrate 
 
       - name: Run Tests
         working-directory: ./core
         run: |
           python manage.py test
+
+  deploy:
+    if: github.ref == 'refs/heads/develop'
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to EC2 (Develop Branch)
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -x  # Enable debug mode
+
+            REPO_DIR="/home/ubuntu/suri/"
+            REPO_URL="https://github.com/SuriyaPasupathi/proven_pro_backend.git"  # replace with your repo
+
+            echo "🧭 Navigating to home directory"
+            cd /home/ubuntu/suri
+
+            if [ ! -d "$REPO_DIR" ]; then
+              echo "📦 Cloning repository (develop branch)..."
+              git clone $REPO_URL 
+            else
+              echo "📥 Repository exists. Pulling latest changes..."
+              cd "$REPO_DIR"
+              git checkout develop
+              git pull origin develop
+
+       
+
+            echo "⚙️ Setting up environment"
+            cd "$REPO_DIR"
+            source env/bin/activate || python3 -m venv env && source env/bin/activate
+            pip install --upgrade pip
+            cd core/
+            pip install -r requirements.txt
+
+            echo "📂 Running migrations and collectstatic"
+            python manage.py migrate user
+            python manage.py collectstatic --noinput
+
+            echo "🔄 Restarting Gunicorn and Nginx"
+            sudo systemctl restart gunicorn
+            sudo systemctl restart nginx
+
+            echo "🔁 Restarting pm2 apps if needed"
+            pm2 reload all || echo "pm2 not configured"
+
+            echo "✅ Deployment complete"
