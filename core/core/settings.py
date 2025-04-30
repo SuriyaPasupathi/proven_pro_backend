@@ -113,8 +113,27 @@ DATABASES = {
         'PASSWORD': config('DB_PASSWORD'),
         'HOST': config('DB_HOST', default='localhost'),
         'PORT': config('DB_PORT', default='3306'),
+        'TEST': {
+            'NAME': config('DB_NAME'),  # Use the same database for tests
+            'CHARSET': 'utf8mb4',
+            'COLLATION': 'utf8mb4_unicode_ci',
+            # Remove the USER and PASSWORD from TEST settings
+            'MIRROR': 'default'  # Mirror the default database settings
+        },
     }
 }
+
+# Remove the SQLite test override if it exists
+# if 'test' in sys.argv:
+#     DATABASES = ...
+# Use SQLite for testing
+if 'test' in sys.argv:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': ':memory:',
+        }
+    }
 
 
 MEDIA_URL = '/media/'
@@ -164,15 +183,20 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
 
-# Email settings for Gmail
-EMAIL_BACKEND = config('EMAIL_BACKEND')
-EMAIL_HOST = config('EMAIL_HOST')
-EMAIL_PORT = 587
-EMAIL_USE_TLS = config('EMAIL_USE_TLS', cast=bool)
-EMAIL_HOST_USER = config('EMAIL_HOST_USER')
-EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD')
-DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL')
-EMAIL_TIMEOUT = config('EMAIL_TIMEOUT', cast=int)
+# Email settings
+if 'test' in sys.argv:
+    # Use console email backend for tests
+    EMAIL_BACKEND = 'django.core.mail.backends.locmem.EmailBackend'
+else:
+    # Production email settings
+    EMAIL_BACKEND = config('EMAIL_BACKEND')
+    EMAIL_HOST = config('EMAIL_HOST')
+    EMAIL_PORT = 587
+    EMAIL_USE_TLS = config('EMAIL_USE_TLS', cast=bool)
+    EMAIL_HOST_USER = config('EMAIL_HOST_USER')
+    EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD')
+    DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL')
+    EMAIL_TIMEOUT = config('EMAIL_TIMEOUT', cast=int)
 
 FRONTEND_URL = 'http://localhost:5173'  # Your React frontend URL
 ALLOWED_HOSTS = ['013b-103-186-120-4.ngrok-free.app']
