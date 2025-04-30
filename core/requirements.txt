@@ -16,4 +16,5 @@ sqlparse
 tzdata                        
 stripe
 python-decouple
-
+pytest-django
+mysql-connector-python
