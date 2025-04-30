@@ -112,10 +112,15 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             echo "Deploying branch: ${{ github.ref }}"
-            cd /home/ubuntu/proven_pro_backend
-            git pull origin main
+            cd /home/ubuntu/suri
+            git pull origin develop
             source env/bin/activate
             pip install -r requirements.txt
+            python manage.py migrate auth
+            python manage.py migrate contenttypes
+            python manage.py migrate admin
+            python manage.py migrate sessions
+            python manage.py migrate user
             python manage.py migrate
             python manage.py collectstatic --noinput
             sudo systemctl restart gunicorn
