@@ -1,13 +1,11 @@
-name: Django CI
+name: Django CI/CD
 
 on:
   push:
-    branches: [ main , develop ]
-  pull_request:
-    branches: [ main , develop ]
+    branches: [ main ]
 
 jobs:
-  build:
+  build-and-test:
     runs-on: ubuntu-latest
 
     services:
@@ -34,26 +32,11 @@ jobs:
       DB_HOST: 127.0.0.1
       DB_PORT: 3306
 
-      # Email secrets
-      EMAIL_BACKEND: ${{ secrets.EMAIL_BACKEND }}
-      EMAIL_HOST: ${{ secrets.EMAIL_HOST }}
-      EMAIL_PORT: ${{ secrets.EMAIL_PORT }}
-      EMAIL_USE_TLS: ${{ secrets.EMAIL_USE_TLS }}
-      EMAIL_HOST_USER: ${{ secrets.EMAIL_HOST_USER }}
-      EMAIL_HOST_PASSWORD: ${{ secrets.EMAIL_HOST_PASSWORD }}
-      DEFAULT_FROM_EMAIL: ${{ secrets.DEFAULT_FROM_EMAIL }}
-      EMAIL_TIMEOUT: ${{ secrets.EMAIL_TIMEOUT }}
-
-      # Stripe secrets
-      STRIPE_PUBLISHABLE_KEY: ${{ secrets.STRIPE_PUBLISHABLE_KEY }}
-      STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
-      STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
@@ -64,47 +47,45 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Wait for MySQL to be ready
+      - name: Wait for MySQL
         run: |
           sudo apt-get install -y mysql-client
           until mysqladmin ping -h 127.0.0.1 --silent; do
-            echo "Waiting for database..."
+            echo "Waiting for DB..."
             sleep 3
           done
 
-      - name: Setup Database
-        run: |
-          mysql -h 127.0.0.1 -u test_user -ptest_password -e "
-          DROP DATABASE IF EXISTS test_db;
-          CREATE DATABASE test_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-          "
-
-      # - name: Clear migrations
-      #   working-directory: ./core
-      #   run: |
-
-      #     rm -f user/migrations/0*.py
-      #     touch user/migrations/__init__.py
-
-      - name: Make migrations
+      - name: Run Migrations
         working-directory: ./core
         run: |
-          python manage.py makemigrations user
           python manage.py makemigrations
-
-      - name: Run migrations
-        working-directory: ./core
-        run: |
-          python manage.py migrate auth
-          python manage.py migrate contenttypes
-          python manage.py migrate admin
-          python manage.py migrate sessions
-          python manage.py migrate user
           python manage.py migrate
-          python manage.py migrate user
-
 
       - name: Run Tests
         working-directory: ./core
-        run: |
-          python manage.py test
+        run: python manage.py test
+
+  deploy:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to EC2 via SSH
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd /home/ubuntu/suri
+            git pull origin main
+
+            source env/bin/activate
+            pip install -r requirements.txt
+
+            python manage.py migrate
+            python manage.py migrate user
+            python manage.py collectstatic --noinput
+
+            pm2 restart django-app
+            sudo systemctl restart nginx
