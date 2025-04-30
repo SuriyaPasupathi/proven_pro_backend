@@ -110,7 +110,7 @@ jobs:
           script: |
             set -x  # Enable debug mode
 
-            REPO_DIR="/home/ubuntu/proven_pro_backend"
+            REPO_DIR="/home/ubuntu/suri/proven_pro_backend"
             REPO_URL="https://github.com/SuriyaPasupathi/proven_pro_backend.git"  # replace with your repo
 
             echo "🧭 Navigating to home directory"
@@ -124,7 +124,8 @@ jobs:
               cd "$REPO_DIR"
               git checkout develop
               git pull origin develop
-            fi
+
+       
 
             echo "⚙️ Setting up environment"
             cd "$REPO_DIR"
