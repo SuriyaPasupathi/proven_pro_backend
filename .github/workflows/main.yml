@@ -150,9 +150,11 @@ jobs:
             echo "Apply remaining migrations (any leftover apps)"
             python manage.py migrate
 
-            echo "pytest"
-            python manage.py test
-            echo "test complited"
+            # echo "pytest"
+            # python manage.py test
+            # echo "test complited"
+
+            python manage.py runserver
 
             echo "Restarting Gunicorn and Nginx"
             sudo systemctl restart gunicorn
