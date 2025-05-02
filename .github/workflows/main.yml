@@ -134,11 +134,21 @@ jobs:
             cd core/
             pip install -r requirements.txt
 
-            echo "Running migrations and collectstatic"
+            echo "Step 1: Make migrations for all apps"
+
             python manage.py makemigrations
+
+            echo "Step 2: Migrate the user app first (important if using CustomUser)"
             python manage.py migrate user
+
+            echo "Step 3: Migrate built-in Django apps next"
+            python manage.py migrate auth
+            python manage.py migrate admin
+            python manage.py migrate contenttypes
+            python manage.py migrate sessions
+            
+            echo "Apply remaining migrations (any leftover apps)"
             python manage.py migrate
-            # python manage.py collectstatic --noinput
 
             echo "pytest"
             python manage.py test
