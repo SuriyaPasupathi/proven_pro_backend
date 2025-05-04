@@ -15,8 +15,6 @@ from datetime import timedelta
 from decouple import config
 
 import os
-import sys
-import logging
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -26,7 +24,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-#*mj14g=sspa-*0b^7$$8^eax7%b5zn!_q+hl4rd=w^vc%u5bx'
+SECRET_KEY = config('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -113,27 +111,8 @@ DATABASES = {
         'PASSWORD': config('DB_PASSWORD'),
         'HOST': config('DB_HOST', default='localhost'),
         'PORT': config('DB_PORT', default='3306'),
-        'TEST': {
-            'NAME': config('DB_NAME'),  # Use the same database for tests
-            'CHARSET': 'utf8mb4',
-            'COLLATION': 'utf8mb4_unicode_ci',
-            # Remove the USER and PASSWORD from TEST settings
-            'MIRROR': 'default'  # Mirror the default database settings
-        },
     }
 }
-
-# Remove the SQLite test override if it exists
-# if 'test' in sys.argv:
-#     DATABASES = ...
-# Use SQLite for testing
-if 'test' in sys.argv:
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': ':memory:',
-        }
-    }
 
 
 MEDIA_URL = '/media/'
@@ -183,20 +162,15 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
 
-# Email settings
-if 'test' in sys.argv:
-    # Use console email backend for tests
-    EMAIL_BACKEND = 'django.core.mail.backends.locmem.EmailBackend'
-else:
-    # Production email settings
-    EMAIL_BACKEND = config('EMAIL_BACKEND')
-    EMAIL_HOST = config('EMAIL_HOST')
-    EMAIL_PORT = 587
-    EMAIL_USE_TLS = config('EMAIL_USE_TLS', cast=bool)
-    EMAIL_HOST_USER = config('EMAIL_HOST_USER')
-    EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD')
-    DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL')
-    EMAIL_TIMEOUT = config('EMAIL_TIMEOUT', cast=int)
+# Email settings for Gmail
+EMAIL_BACKEND = config('EMAIL_BACKEND')
+EMAIL_HOST = config('EMAIL_HOST')
+EMAIL_PORT = config('EMAIL_PORT', cast=int)
+EMAIL_USE_TLS = config('EMAIL_USE_TLS', cast=bool)
+EMAIL_HOST_USER = config('EMAIL_HOST_USER')
+EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD')
+DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL')
+EMAIL_TIMEOUT = config('EMAIL_TIMEOUT', cast=int)
 
 FRONTEND_URL = 'http://localhost:5173'  # Your React frontend URL
 ALLOWED_HOSTS = ['013b-103-186-120-4.ngrok-free.app']
@@ -207,33 +181,26 @@ LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
     'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
         'file': {
-            'level': 'ERROR',
             'class': 'logging.FileHandler',
             'filename': 'debug.log',
         },
-        'console': {
-            'level': 'ERROR',
-            'class': 'logging.StreamHandler',
-        },
     },
     'loggers': {
-        'django': {
-            'handlers': ['file', 'console'],
-            'level': 'ERROR',
-            'propagate': True,
+        '': {  # Root logger
+            'handlers': ['console', 'file'],
+            'level': 'INFO',
         },
-        'user': {
-            'handlers': ['file', 'console'],
-            'level': 'ERROR',
-            'propagate': True,
+        'user': {  # App-specific logger
+            'handlers': ['console', 'file'],
+            'level': 'DEBUG',
+            'propagate': False,
         },
     },
 }
-
-# Only show ERROR and above during testing
-if len(sys.argv) > 1 and sys.argv[1] == 'test':
-    logging.disable(logging.WARNING)
 
 # Stripe Settings
 
@@ -243,6 +210,7 @@ STRIPE_WEBHOOK_SECRET = config('STRIPE_WEBHOOK_SECRET')
 
 # Product Price IDs
 STRIPE_PRICE_IDS = {
-    'standard': 'price_1RI18uIMgP67b2ME7LlSIjWe',
-    'premium': 'price_1RI18vIMgP67b2ME4ZFwJJOc',
+    'standard': config('STRIPE_PRICE_STANDARD'),
+    'premium': config('STRIPE_PRICE_PREMIUM'),
 }
+

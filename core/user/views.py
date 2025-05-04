@@ -1,37 +1,31 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import generics, permissions, status, viewsets
+from rest_framework import  permissions, status
 from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
-from rest_framework.decorators import api_view, permission_classes
-
+from rest_framework import viewsets, permissions, status
 from django.contrib.auth import get_user_model
+from .serializers import RegisterSerializer, UserProfileSerializer, RequestPasswordResetSerializer, PasswordResetConfirmSerializer,ReviewSerializer
+from .models import UserProfile,Review  # Assuming CustomUser is the model for your custom user
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.decorators import api_view, permission_classes
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.encoding import force_bytes, force_str
+from .serializers import RegisterSerializer, UserProfileSerializer, RequestPasswordResetSerializer, PasswordResetConfirmSerializer,ReviewSerializer, ProfileShareSerializer, PublicProfileSerializer
+from .models import UserProfile,Review, ProfileShare  # Assuming CustomUser is the model for your custom user
 from django.conf import settings
 from django.utils import timezone
-from django.http import JsonResponse, Http404
-from django.core.mail import EmailMultiAlternatives, send_mail
-
-from .serializers import (
-    RegisterSerializer, 
-    UserProfileSerializer, 
-    RequestPasswordResetSerializer, 
-    PasswordResetConfirmSerializer,
-    ReviewSerializer, 
-    ProfileShareSerializer, 
-    PublicProfileSerializer
-)
-from .models import UserProfile, Review, ProfileShare
-
 import uuid
+from rest_framework.parsers import MultiPartParser, FormParser
+from django.core.mail import EmailMultiAlternatives
 import stripe
-import logging
+from django.http import JsonResponse
+from django.core.validators import validate_email
+from django.core.exceptions import ValidationError
+from django.core.mail import send_mail
 
-logger = logging.getLogger(__name__)
 stripe.api_key = settings.STRIPE_SECRET_KEY
+
 User = get_user_model()
 
 # ✅ Register View
@@ -374,6 +368,8 @@ def generate_profile_share(request):
         """
         
         try:
+     
+            
             subject = f"Profile Review Request from {profile.name}"
             email = EmailMultiAlternatives(
                 subject=subject,
@@ -388,17 +384,20 @@ def generate_profile_share(request):
                 'message': 'Share link sent successfully',
                 'share_token': str(share.share_token),
                 'verification_url': verification_url
-            }, status=status.HTTP_201_CREATED)  # Changed from HTTP_200_OK to HTTP_201_CREATED
+            })
             
         except Exception as e:
+            # Log the error for debugging
+            import logging
+            logger = logging.getLogger(__name__)
             logger.error(f"Email sending failed: {str(e)}")
             
-            # Still return 201 since the share link was created
+            # Still return success since the share link was created
             return Response({
                 'message': 'Share link created but email sending failed. Please share the link manually.',
                 'share_token': str(share.share_token),
                 'verification_url': verification_url
-            }, status=status.HTTP_201_CREATED)  # Changed from HTTP_200_OK to HTTP_201_CREATED
+            }, status=status.HTTP_201_CREATED)
             
     except UserProfile.DoesNotExist:
         return Response(
@@ -481,19 +480,41 @@ def submit_review(request, token):
 
 @api_view(['POST'])
 def test_email(request):
+    email = request.data.get('email', '')
+    
+    if not email:
+        return Response(
+            {'error': 'Email is required'}, 
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
     try:
-        from django.core.mail import send_mail
+        # Validate email format
+        validate_email(email)
         
-        send_mail(
+        # Attempt to send email
+        result = send_mail(
             subject='Test Email',
             message='This is a test email.',
             from_email=settings.EMAIL_HOST_USER,
-            recipient_list=[request.data.get('email', '')],
+            recipient_list=[email],
             fail_silently=False,
         )
+        
+        if result == 0:
+            raise Exception("Failed to send email")
+            
         return Response({'message': 'Test email sent successfully'})
+    except ValidationError:
+        return Response(
+            {'error': 'Invalid email format'}, 
+            status=status.HTTP_400_BAD_REQUEST
+        )
     except Exception as e:
-        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response(
+            {'error': str(e)}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -509,33 +530,17 @@ def get_reviews(request):
     return Response(serializer.data)
 
 class UpdateProfileView(APIView):
-    permission_classes = [IsAuthenticated]
-    parser_classes = (JSONParser, MultiPartParser, FormParser)
+    parser_classes = (MultiPartParser, FormParser)
 
-    def get_object(self, pk):
-        try:
-            return UserProfile.objects.get(pk=pk)
-        except UserProfile.DoesNotExist:
-            raise Http404
-
-    def put(self, request, pk):
-        profile = self.get_object(pk)
+    def put(self, request, *args, **kwargs):
+        user = request.user  # Get the logged-in user
+        profile = UserProfile.objects.get(user=user)
         
-        # Check if the user owns this profile
-        if profile.user != request.user:
-            return Response(
-                {'error': 'You do not have permission to update this profile'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
         serializer = UserProfileSerializer(profile, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    def patch(self, request, pk):
-        return self.put(request, pk)
+        return Response(serializer.errors, status=400)
 
 class UpdateSubscriptionView(APIView):
     permission_classes = [IsAuthenticated]
@@ -680,32 +685,4 @@ class StripeWebhookView(APIView):
             return Response(
                 {'error': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
-class UserProfileView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request, pk):
-        try:
-            profile = UserProfile.objects.get(pk=pk)
-            serializer = UserProfileSerializer(profile)
-            return Response(serializer.data)
-        except UserProfile.DoesNotExist:
-            return Response(
-                {'detail': 'Profile not found'}, 
-                status=status.HTTP_404_NOT_FOUND
-            )
-
-    def put(self, request, pk):
-        try:
-            profile = UserProfile.objects.get(pk=pk)
-            serializer = UserProfileSerializer(profile, data=request.data, partial=True)
-            if serializer.is_valid():
-                serializer.save()
-                return Response(serializer.data)
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        except UserProfile.DoesNotExist:
-            return Response(
-                {'detail': 'Profile not found'}, 
-                status=status.HTTP_404_NOT_FOUND
             )
