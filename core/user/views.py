@@ -610,7 +610,9 @@ class CreatePaymentIntentView(APIView):
                     'quantity': 1,
                 }],
                 mode='payment',
-                success_url=f'{settings.FRONTEND_URL}/payment-success?session_id={{CHECKOUT_SESSION_ID}}',
+                # Temporarily disabled payment redirect
+                # success_url=f'{settings.FRONTEND_URL}/payment-success?session_id={{CHECKOUT_SESSION_ID}}',
+                success_url=f'{settings.FRONTEND_URL}/subscription',
                 cancel_url=f'{settings.FRONTEND_URL}/subscription',
                 metadata={
                     'user_id': request.user.id,
