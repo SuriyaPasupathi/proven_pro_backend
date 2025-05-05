@@ -20,7 +20,8 @@ from .views import (
     UpdateProfileView,
     UpdateSubscriptionView,
     CreatePaymentIntentView,
-    StripeWebhookView
+    StripeWebhookView,
+    google_auth  # Add the new view
 )
 
 router = DefaultRouter()
@@ -47,6 +48,7 @@ urlpatterns = [
     path('update-subscription/', UpdateSubscriptionView.as_view(), name='update-subscription'),
     path('create-payment-intent/', CreatePaymentIntentView.as_view(), name='create-payment-intent'),
     path('webhook/stripe/', StripeWebhookView.as_view(), name='stripe-webhook'),
+    path('google-auth/', google_auth, name='google-auth'),
 ]
 
 # Add this at the end to serve media files during development

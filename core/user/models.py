@@ -17,7 +17,39 @@ class CustomUser(AbstractUser):
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['username']
-    
+    @classmethod
+    def create_google_user(email, google_id, name):
+        """Helper method to create a new user from Google authentication"""
+        username = f"google_{google_id[:10]}"  # Create a unique username
+        
+        # Check if username exists and make it unique if needed
+        i = 1
+        temp_username = username
+        while CustomUser.objects.filter(username=temp_username).exists():
+            temp_username = f"{username}_{i}"
+            i += 1
+        username = temp_username
+        
+        # Create user with random password since they'll login via Google
+        import uuid
+        random_password = str(uuid.uuid4())
+        
+        user = CustomUser.objects.create_user(
+            username=username,
+            email=email,
+            password=random_password,
+            is_google_user=True,
+            google_id=google_id
+        )
+        
+        # Create profile with basic info
+        UserProfile.objects.create(
+            user=user,
+            name=name,
+            subscription_type='free'
+        )
+        
+        return user
 
 
 
@@ -147,4 +179,38 @@ class ProfileShare(models.Model):
     
     class Meta:
         ordering = ['-created_at']
+
+# Add this function at the module level (outside of any class)
+def create_google_user(email, google_id, name):
+    """Helper function to create a new user from Google authentication"""
+    username = f"google_{google_id[:10]}"  # Create a unique username
+    
+    # Check if username exists and make it unique if needed
+    i = 1
+    temp_username = username
+    while CustomUser.objects.filter(username=temp_username).exists():
+        temp_username = f"{username}_{i}"
+        i += 1
+    username = temp_username
+    
+    # Create user with random password since they'll login via Google
+    import uuid
+    random_password = str(uuid.uuid4())
+    
+    user = CustomUser.objects.create_user(
+        username=username,
+        email=email,
+        password=random_password,
+        is_google_user=True,
+        google_id=google_id
+    )
+    
+    # Create profile with basic info
+    UserProfile.objects.create(
+        user=user,
+        name=name,
+        subscription_type='free'
+    )
+    
+    return user
 

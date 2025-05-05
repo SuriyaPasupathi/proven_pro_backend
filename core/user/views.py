@@ -6,13 +6,13 @@ from rest_framework import viewsets, permissions, status
 from django.contrib.auth import get_user_model
 from .serializers import RegisterSerializer, UserProfileSerializer, RequestPasswordResetSerializer, PasswordResetConfirmSerializer,ReviewSerializer
 from .models import UserProfile,Review  # Assuming CustomUser is the model for your custom user
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.decorators import api_view, permission_classes
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.encoding import force_bytes, force_str
 from .serializers import RegisterSerializer, UserProfileSerializer, RequestPasswordResetSerializer, PasswordResetConfirmSerializer,ReviewSerializer, ProfileShareSerializer, PublicProfileSerializer
-from .models import UserProfile,Review, ProfileShare  # Assuming CustomUser is the model for your custom user
+from .models import UserProfile,Review, ProfileShare, CustomUser  # Assuming CustomUser is the model for your custom user
 from django.conf import settings
 from django.utils import timezone
 import uuid
@@ -23,6 +23,7 @@ from django.http import JsonResponse
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
 from django.core.mail import send_mail
+import requests
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
@@ -191,6 +192,11 @@ def get_profile(request):
 
 class RequestResetPasswordView(APIView):
     def post(self, request):
+        # Import necessary modules
+        import re  # Add this import
+        import logging
+        from django.core.mail import EmailMultiAlternatives
+        
         serializer = RequestPasswordResetSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         email = serializer.validated_data['email']
@@ -237,8 +243,6 @@ class RequestResetPasswordView(APIView):
             """
 
             try:
-                from django.core.mail import EmailMultiAlternatives
-                
                 subject = "Reset Your Password"
                 email_message = EmailMultiAlternatives(
                     subject=subject,
@@ -255,7 +259,6 @@ class RequestResetPasswordView(APIView):
                 })
 
             except Exception as e:
-                import logging
                 logger = logging.getLogger(__name__)
                 logger.error(f"Password reset email failed: {str(e)}")
                 return Response({
@@ -314,6 +317,11 @@ class LogoutView(APIView):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def generate_profile_share(request):
+    # Import necessary modules at the top of the function
+    import logging
+    import re  # Add this import for regular expressions
+    from django.core.mail import EmailMultiAlternatives
+    
     recipient_email = request.data.get('email')
     if not recipient_email:
         return Response(
@@ -368,8 +376,6 @@ def generate_profile_share(request):
         """
         
         try:
-     
-            
             subject = f"Profile Review Request from {profile.name}"
             email = EmailMultiAlternatives(
                 subject=subject,
@@ -388,7 +394,6 @@ def generate_profile_share(request):
             
         except Exception as e:
             # Log the error for debugging
-            import logging
             logger = logging.getLogger(__name__)
             logger.error(f"Email sending failed: {str(e)}")
             
@@ -480,6 +485,11 @@ def submit_review(request, token):
 
 @api_view(['POST'])
 def test_email(request):
+    # Import necessary modules
+    import re  # Add this import
+    from django.core.validators import validate_email
+    from django.core.mail import send_mail
+    
     email = request.data.get('email', '')
     
     if not email:
@@ -688,3 +698,147 @@ class StripeWebhookView(APIView):
                 {'error': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def google_auth(request):
+    """
+    Authenticate user with Google OAuth token
+    """
+    token = request.data.get('token')
+    
+    if not token:
+        return Response(
+            {'error': 'Google token is required'}, 
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    try:
+        # For JWT tokens from Google Sign-In, we need to use the userinfo endpoint
+        # with the token in the Authorization header
+        google_response = requests.get(
+            'https://www.googleapis.com/oauth2/v3/userinfo',
+            headers={'Authorization': f'Bearer {token}'}
+        )
+        
+        # Log the response for debugging
+        print(f"Google API response status: {google_response.status_code}")
+        
+        if not google_response.ok:
+            # Try alternative verification method for ID tokens
+            try:
+                # This is for ID tokens, not access tokens
+                id_token_response = requests.get(
+                    'https://oauth2.googleapis.com/tokeninfo',
+                    params={'id_token': token}
+                )
+                
+                if id_token_response.ok:
+                    google_data = id_token_response.json()
+                else:
+                    return Response({
+                        'error': 'Invalid Google token',
+                        'details': google_response.text
+                    }, status=status.HTTP_401_UNAUTHORIZED)
+            except Exception as e:
+                return Response({
+                    'error': 'Invalid Google token',
+                    'details': str(e)
+                }, status=status.HTTP_401_UNAUTHORIZED)
+        else:
+            google_data = google_response.json()
+        
+        # Extract user info
+        email = google_data.get('email')
+        google_id = google_data.get('sub')  # Google's unique identifier
+        name = google_data.get('name', '')
+        
+        if not email or not google_id:
+            return Response(
+                {'error': 'Could not get email or ID from Google'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Find existing user or create new one
+        try:
+            user = CustomUser.objects.get(email=email)
+            
+            # Update Google ID if not set
+            if not user.google_id:
+                user.google_id = google_id
+                user.is_google_user = True
+                user.save()
+                
+        except CustomUser.DoesNotExist:
+            # Create new user
+            # Define the function inline if it's not available
+            username = f"google_{google_id[:10]}"  # Create a unique username
+            
+            # Check if username exists and make it unique if needed
+            i = 1
+            temp_username = username
+            while CustomUser.objects.filter(username=temp_username).exists():
+                temp_username = f"{username}_{i}"
+                i += 1
+            username = temp_username
+            
+            # Create user with random password since they'll login via Google
+            import uuid
+            random_password = str(uuid.uuid4())
+            
+            user = CustomUser.objects.create_user(
+                username=username,
+                email=email,
+                password=random_password,
+                is_google_user=True,
+                google_id=google_id
+            )
+            
+            # Create profile with basic info
+            try:
+                UserProfile.objects.create(
+                    user=user,
+                    name=name,
+                    subscription_type='free'
+                )
+            except Exception as e:
+                print(f"Could not create profile: {str(e)}")
+        
+        # Generate tokens
+        refresh = RefreshToken.for_user(user)
+        
+        # Check if user has a profile with data (not just an empty profile)
+        profile = UserProfile.objects.filter(user=user).first()
+        has_profile = profile is not None and bool(
+            profile.name or 
+            profile.job_title or 
+            profile.job_specialization or
+            profile.subscription_type != 'free'
+        )
+
+        return Response({
+            'message': 'Login successful!',
+            'access': str(refresh.access_token),
+            'refresh': str(refresh),
+            'user': {
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+            },
+            'has_profile': has_profile
+        })
+        
+    except requests.RequestException as e:
+        print(f"Request exception: {str(e)}")
+        return Response(
+            {'error': f'Error connecting to Google: {str(e)}'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+    except Exception as e:
+        import traceback
+        print(f"Unexpected error: {str(e)}")
+        print(traceback.format_exc())
+        return Response(
+            {'error': f'Unexpected error: {str(e)}'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
